@@ -367,16 +367,20 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
       {/* Composer */}
       <div style={{ padding:"10px 12px",borderTop:`1px solid ${T.border}`,background:T.surfaceAlt }}>
         <div style={{ display:"flex",gap:5,marginBottom:6,flexWrap:"wrap" }}>
-          {facilitators.length>0 ? (
-            <select value={facId} onChange={e=>setFacId(e.target.value)}
-              style={{ flex:"1 1 130px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }}>
-              <option value="">Select your name…</option>
-              {facilitators.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          ) : (
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name"
-              style={{ flex:"1 1 120px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }} />
-          )}
+          <div style={{ display:"flex",flexDirection:"column",gap:3,flex:"1 1 130px" }}>
+            {facilitators.length>0 && (
+              <select value={facId} onChange={e=>setFacId(e.target.value)}
+                style={{ width:"100%",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }}>
+                <option value="">Select your name…</option>
+                {facilitators.map(f=><option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            )}
+            {(!facId) && (
+              <input value={name} onChange={e=>setName(e.target.value)}
+                placeholder={facilitators.length>0 ? "Or type name if not listed" : "Your name"}
+                style={{ width:"100%",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }} />
+            )}
+          </div>
           <select value={type} onChange={e=>setType(e.target.value)}
             style={{ flex:"0 0 110px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }}>
             <option value="comment">Comment</option>
@@ -600,8 +604,7 @@ function GridOverview({ modules, onSelect, onPreview, active, logs, facilitators
 // ─── ROTATION VIEW ────────────────────────────────────────────────────────────
 function RotationView({ modules, logs, onAdd, onStatus, facilitators, isAdmin }) {
   return (
-    <div style={{ display:"flex",gap:20,alignItems:"flex-start",flexWrap:"wrap" }}>
-      <div style={{ flex:1,minWidth:0 }}>
+    <div style={{ flex:1,minWidth:0 }}>
         {/* Facilitator cards */}
         <div style={{ display:"flex",gap:10,marginBottom:18,flexWrap:"wrap" }}>
           {facilitators.map(f=>{
@@ -668,10 +671,6 @@ function RotationView({ modules, logs, onAdd, onStatus, facilitators, isAdmin })
         </div>
       </div>
 
-      {/* Feedback panel alongside rotation */}
-      <div style={{ width:300,flexShrink:0,height:"100%",minHeight:0 }}>
-        <FeedbackPanel moduleNum={null} moduleName="Rotation View" logs={logs} onAdd={onAdd} onStatus={onStatus} facilitators={facilitators} isAdmin={isAdmin} compact={false}/>
-      </div>
     </div>
   );
 }
@@ -691,14 +690,24 @@ export default function App() {
   const selectedMod = active ? modules.find(m=>m.num===active) : null;
   const pendingCount = logs.filter(l=>l.status==="pending").length;
 
-  // Load facilitators from Supabase if configured
+  // Load facilitators and feedback from Supabase
   useEffect(()=>{
-    if (!SUPABASE_URL) return;
+    if (!SUPABASE_URL || !SUPABASE_ANON) {
+      console.warn("[DCW] Supabase not configured — using placeholder facilitators. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel environment variables.");
+      return;
+    }
     sbFetch("curriculum_facilitators?select=*&order=sort_order.asc").then(rows=>{
-      if (rows?.length) setFac(rows.map(r=>({
-        id:r.id, name:r.name, initials:r.initials||r.name.split(" ").map(w=>w[0]).join("").toUpperCase(),
-        color:r.color||T.navy, light:r.light||T.navyLight, avatarUrl:r.avatar_url||null, role:r.role||null,
-      })));
+      if (rows?.length) {
+        console.log("[DCW] Loaded", rows.length, "facilitators from Supabase");
+        setFac(rows.map(r=>({
+          id:r.id, name:r.name,
+          initials: r.initials || r.name.split(" ").map(w=>w[0]).join("").toUpperCase(),
+          color:r.color||T.navy, light:r.light||T.navyLight,
+          avatarUrl:r.avatar_url||null, role:r.role||null,
+        })));
+      } else {
+        console.warn("[DCW] curriculum_facilitators returned no rows — check RLS policies and that profiles have role=instructor or admin");
+      }
     });
     sbFetch("curriculum_edits?select=*&order=created_at.asc").then(rows=>{
       if (rows?.length) setLogs(rows);
@@ -863,7 +872,7 @@ export default function App() {
         </div>
 
         {/* PERSISTENT FEEDBACK PANEL — always visible, scoped to active module or global */}
-        {(view==="overview"||view==="detail") && (
+        {(view==="overview"||view==="detail"||view==="rotation") && (
           <div style={{
             width:300, flexShrink:0,
             borderLeft:`1px solid ${T.border}`,
@@ -873,7 +882,10 @@ export default function App() {
           }}>
             <FeedbackPanel
               moduleNum={selectedMod ? active : null}
-              moduleName={selectedMod ? selectedMod.month+" — "+selectedMod.title : null}
+              moduleName={
+                view==="rotation" ? "Rotation Schedule" :
+                selectedMod ? selectedMod.month+" — "+selectedMod.title : null
+              }
               logs={logs}
               onAdd={addLog}
               onStatus={updateStatus}
