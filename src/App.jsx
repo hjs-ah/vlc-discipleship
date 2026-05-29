@@ -526,7 +526,7 @@ function ModuleCard({ mod, onUpdate, editMode, facilitators }) {
 // ─── TIMELINE ─────────────────────────────────────────────────────────────────
 function Timeline({ active, onSelect, modules, facilitators }) {
   return (
-    <div style={{ display:"flex",borderBottom:`1px solid ${T.border}`,background:T.surface,overflowX:"auto" }}>
+    <div style={{ display:"flex",borderBottom:`1px solid ${T.border}`,background:T.surface,overflowX:"auto",flexShrink:0 }}>
       {modules.map(m=>{
         const fac=facilitators.find(f=>f.id===m.lead);
         const isActive=active===m.num;
@@ -669,7 +669,7 @@ function RotationView({ modules, logs, onAdd, onStatus, facilitators, isAdmin })
       </div>
 
       {/* Feedback panel alongside rotation */}
-      <div style={{ width:300,flexShrink:0,height:"calc(100vh - 180px)",position:"sticky",top:100 }}>
+      <div style={{ width:300,flexShrink:0,height:"100%",minHeight:0 }}>
         <FeedbackPanel moduleNum={null} moduleName="Rotation View" logs={logs} onAdd={onAdd} onStatus={onStatus} facilitators={facilitators} isAdmin={isAdmin} compact={false}/>
       </div>
     </div>
@@ -746,7 +746,7 @@ export default function App() {
   ];
 
   return (
-    <div style={{ minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'Inter','Segoe UI',system-ui,sans-serif" }}>
+    <div style={{ height:"100vh",display:"flex",flexDirection:"column",background:T.bg,color:T.text,fontFamily:"'Inter','Segoe UI',system-ui,sans-serif",overflow:"hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -763,7 +763,7 @@ export default function App() {
       {/* TOP BAR */}
       <div style={{ background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"11px 22px",
         display:"flex",alignItems:"center",justifyContent:"space-between",
-        position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexWrap:"wrap",gap:8 }}>
+        zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexWrap:"wrap",gap:8,flexShrink:0 }}>
         <div>
           <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:1 }}><div style={{ width:28,height:28,borderRadius:6,background:T.navy,border:`1.5px solid ${T.gold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:T.gold,letterSpacing:"0.05em",flexShrink:0 }}>DCW</div><div style={{ fontSize:10,color:T.gold,fontWeight:700,letterSpacing:"0.12em" }}>VERITY LEARNING CENTER</div></div>
           <div style={{ fontSize:16,fontWeight:800,color:T.navy }}>Discipleship Curriculum Workspace</div>
@@ -800,8 +800,8 @@ export default function App() {
       <Timeline active={active} onSelect={handleSelect} modules={modules} facilitators={facilitators}/>
 
       {/* MAIN BODY */}
-      <div style={{ display:"flex",height:"calc(100vh - 106px)",overflow:"hidden" }}>
-        <div style={{ flex:1,overflowY:"auto",padding:"22px 22px 48px",minWidth:0 }}>
+      <div style={{ display:"flex",flex:1,minHeight:0,overflow:"hidden" }}>
+        <div style={{ flex:1,overflowY:"auto",overflowX:"hidden",padding:"22px 22px 48px",minWidth:0,height:"100%" }}>
 
           {/* OVERVIEW */}
           {(view==="overview"||view==="detail")&&!selectedMod&&(
@@ -869,7 +869,7 @@ export default function App() {
             borderLeft:`1px solid ${T.border}`,
             display:"flex", flexDirection:"column",
             height:"100%", overflow:"hidden",
-            background:T.surface,
+            background:T.surface, minHeight:0,
           }}>
             <FeedbackPanel
               moduleNum={selectedMod ? active : null}
