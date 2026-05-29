@@ -15,13 +15,13 @@ const T = {
 
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 // Fill these in before deploying. Leave null to run in local/demo mode.
-const SUPABASE_URL  = "https://mpswxsbczxmdvfjidbqq.supabase.co";
-const SUPABASE_ANON = null;  // your anon/public key
-const RESEND_KEY    = null;  // "re_xxxx..." — for admin email alerts on new Edit Requests
-const ADMIN_EMAIL   = null;  // "you@example.com"
-const NOTION_TOKEN  = null;  // "secret_xxxx..." — for Notion feedback log
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const RESEND_KEY    = import.meta.env.VITE_RESEND_KEY;
+const ADMIN_EMAIL   = import.meta.env.VITE_ADMIN_EMAIL;
+const NOTION_TOKEN  = import.meta.env.VITE_NOTION_TOKEN;
 const NOTION_DB_ID  = "d90b58836a1e49f5ba51f6bc8969b412"; // D2D Curriculum Feedback Log — https://www.notion.so/d90b58836a1e49f5ba51f6bc8969b412
-const ADMIN_PIN     = "1234"; // Change before deploying
+const ADMIN_PIN     = import.meta.env.VITE_ADMIN_PIN ?? "1234";
 
 // ─── SUPABASE HELPERS ─────────────────────────────────────────────────────────
 async function sbFetch(path, opts = {}) {
