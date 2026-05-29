@@ -397,10 +397,17 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
             /* Authenticated -- show name badge, no input needed */
             <div style={{ display:"flex",alignItems:"center",gap:6,flex:"1 1 130px",
               background:T.navyLight,border:`1px solid ${T.navyMid}44`,borderRadius:6,padding:"4px 8px" }}>
-              {facilitators.find(f=>f.id===autoFacId) &&
-                <Avatar fac={facilitators.find(f=>f.id===autoFacId)} size={18}/>}
+              {/* Show avatar from facilitator list, or fallback to sessionUser directly */}
+              {(facilitators.find(f=>f.id===autoFacId) || sessionUser) &&
+                <Avatar fac={facilitators.find(f=>f.id===autoFacId) || {
+                  initials: sessionUser?.initials || (autoName||"?").split(" ").map(w=>w[0]).join("").toUpperCase(),
+                  color: sessionUser?.color || T.navy,
+                  avatarUrl: sessionUser?.avatarUrl || sessionUser?.avatar_url || null,
+                }} size={18}/>}
               <span style={{ fontSize:11,fontWeight:600,color:T.navy }}>{autoName}</span>
-              <span style={{ fontSize:9,color:T.textSub,marginLeft:"auto" }}>signed in</span>
+              <span style={{ fontSize:9,color:T.textSub,marginLeft:"auto" }}>
+                {sessionUser?.role === "admin" ? "admin" : "signed in"}
+              </span>
             </div>
           ) : (
             /* Anonymous / test mode -- freetext name */
@@ -717,39 +724,90 @@ export default function App() {
   const selectedMod = active ? modules.find(m=>m.num===active) : null;
   const pendingCount = logs.filter(l=>l.status==="pending").length;
 
-  // Load facilitators and feedback from Supabase
+  // Load data and detect user identity on mount
   useEffect(()=>{
+
+    // --- Priority 1: VLC iframe URL params ---
+    // When opened from the VLC app, user info arrives as query params.
+    // These take precedence over everything else.
+    const params = new URLSearchParams(window.location.search);
+    const vlcName     = params.get("vlc_user");
+    const vlcInitials = params.get("vlc_initials");
+    const vlcEmail    = params.get("vlc_email");
+    const vlcRole     = params.get("vlc_role");
+    const vlcId       = params.get("vlc_id");
+    const vlcAvatar   = params.get("vlc_avatar");
+
+    if (vlcName) {
+      console.log("[DCW] User injected from VLC iframe params:", vlcName);
+      const vlcProfile = {
+        id:        vlcId    || null,
+        full_name: vlcName,
+        initials:  vlcInitials || vlcName.split(" ").map(w=>w[0]).join("").toUpperCase(),
+        email:     vlcEmail || null,
+        role:      vlcRole  || "instructor",
+        avatar_url: vlcAvatar || null,
+        // Build a matching facilitator entry so avatar/initials render in the composer
+        color:     vlcRole === "admin" ? T.navy : T.green,
+        light:     vlcRole === "admin" ? T.navyLight : T.greenLight,
+        avatarUrl: vlcAvatar || null,
+      };
+      setSessionUser(vlcProfile);
+      if (vlcRole === "admin") setIsAdmin(true);
+      // Also inject this person into the facilitator list if they aren't already there
+      setFac(prev => {
+        const alreadyIn = prev.some(f => f.id === vlcId || f.name === vlcName);
+        if (alreadyIn) return prev;
+        return [...prev, { ...vlcProfile, id: vlcId || vlcName }];
+      });
+    }
+
+    // --- Priority 2 & 3: Supabase (session or data) ---
     if (!SUPABASE_URL || !SUPABASE_ANON) {
-      console.warn("[DCW] Supabase not configured -- using placeholder facilitators. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel environment variables.");
+      if (!vlcName) {
+        console.warn("[DCW] Supabase not configured and no VLC params -- anonymous mode.");
+      }
       return;
     }
+
     sbFetch("curriculum_facilitators?select=*&order=sort_order.asc").then(rows=>{
       if (rows?.length) {
         console.log("[DCW] Loaded", rows.length, "facilitators from Supabase");
-        setFac(rows.map(r=>({
-          id:r.id, name:r.name,
-          initials: r.initials || r.name.split(" ").map(w=>w[0]).join("").toUpperCase(),
-          color:r.color||T.navy, light:r.light||T.navyLight,
-          avatarUrl:r.avatar_url||null, role:r.role||null,
-        })));
+        setFac(prev => {
+          // Merge: keep any VLC-injected user, replace the rest with Supabase data
+          const vlcEntry = prev.find(f => f.id === vlcId || f.name === vlcName);
+          const sbEntries = rows.map(r=>({
+            id:r.id, name:r.name,
+            initials: r.initials || r.name.split(" ").map(w=>w[0]).join("").toUpperCase(),
+            color:r.color||T.navy, light:r.light||T.navyLight,
+            avatarUrl:r.avatar_url||null, role:r.role||null,
+          }));
+          // If VLC user is already in Supabase data, no need to keep the injected one
+          const vlcInSb = vlcEntry && sbEntries.some(f => f.id === vlcEntry.id);
+          return vlcEntry && !vlcInSb ? [vlcEntry, ...sbEntries] : sbEntries;
+        });
       } else {
-        console.warn("[DCW] curriculum_facilitators returned no rows -- check RLS policies and that profiles have role=instructor or admin");
+        console.warn("[DCW] curriculum_facilitators returned no rows -- check RLS and profile roles");
       }
     });
+
     sbFetch("curriculum_edits?select=*&order=created_at.asc").then(rows=>{
       if (rows?.length) setLogs(rows);
     });
-    // Auto-detect logged-in user from Supabase session
-    getSessionProfile().then(profile => {
-      if (profile) {
-        console.log("[DCW] Authenticated as:", profile.full_name);
-        setSessionUser(profile);
-        // Automatically grant admin UI if their role is admin
-        if (profile.role === "admin") setIsAdmin(true);
-      } else {
-        console.log("[DCW] No active session -- running in anonymous/test mode");
-      }
-    });
+
+    // Priority 2: Supabase session (standalone, not iframe)
+    if (!vlcName) {
+      getSessionProfile().then(profile => {
+        if (profile) {
+          console.log("[DCW] Authenticated via Supabase session:", profile.full_name);
+          setSessionUser(profile);
+          if (profile.role === "admin") setIsAdmin(true);
+        } else {
+          console.log("[DCW] No session and no VLC params -- anonymous/test mode");
+        }
+      });
+    }
+
   },[]);
 
   const updateModule = useCallback(updated => {
