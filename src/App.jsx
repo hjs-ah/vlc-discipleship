@@ -102,10 +102,10 @@ async function syncToNotion(entry, moduleName) {
 
 // --- FALLBACK FACILITATORS (used when Supabase not connected) ---
 const DEFAULT_FACILITATORS = [
-  { id:"A", name:"Facilitator A", initials:"FA", color:T.navy,   light:T.navyLight,   avatarUrl:null },
-  { id:"B", name:"Facilitator B", initials:"FB", color:T.green,  light:T.greenLight,  avatarUrl:null },
-  { id:"C", name:"Facilitator C", initials:"FC", color:T.purple, light:T.purpleLight, avatarUrl:null },
-  { id:"D", name:"Facilitator D", initials:"FD", color:T.rust,   light:T.rustLight,   avatarUrl:null },
+  { id:"A", name:"Antone Holmes",     initials:"AH", color:T.navy,   light:T.navyLight,   avatarUrl:null },
+  { id:"B", name:"Marquia Holmes",    initials:"MH", color:T.green,  light:T.greenLight,  avatarUrl:null },
+  { id:"C", name:"Vanessa Wilkerson", initials:"VW", color:T.purple, light:T.purpleLight, avatarUrl:null },
+  { id:"D", name:"George Sephes",     initials:"GS", color:T.rust,   light:T.rustLight,   avatarUrl:null },
 ];
 
 // --- MODULES ---
@@ -236,12 +236,19 @@ function AdminPinModal({ onSuccess, onCancel }) {
 
 // --- WELCOME MODAL ---
 function WelcomeModal({ onClose }) {
+  const stepIcons = [
+    { bg:T.navyLight,  color:T.navy,   label:"12" },
+    { bg:T.purpleLight,color:T.purple, label:"MSG" },
+    { bg:T.greenLight, color:T.green,  label:"OK" },
+    { bg:T.goldLight,  color:T.gold,   label:"@" },
+    { bg:T.surfaceAlt, color:T.textMid,label:"N" },
+  ];
   const steps = [
-    { icon:"[cal]", title:"Browse the Curriculum", body:"Use the month strip at the top to jump to any module, or browse all 12 cards in the overview. Each card shows the lead facilitator, module theme, and any pending feedback." },
-    { icon:"[msg]", title:"Submit Feedback", body:"Use the 'Additional Feedback' panel visible on every module page. Post a comment, submit an edit suggestion, or ask a question. Tag the field you're referencing for clarity." },
-    { icon:"[ok]", title:"Feedback is Shared", body:"All facilitators see all feedback entries. The admin reviews, approves, or rejects edit requests. Approved changes are applied to the next deployment." },
-    { icon:"[email]", title:"Admin is Notified", body:"Every new Edit Request triggers an email to the curriculum admin. You don't need to follow up -- just submit and it will be reviewed." },
-    { icon:"[note]", title:"Notion Log", body:"All feedback is mirrored to a shared Notion database anyone can view. Use it as a running record of curriculum decisions across the cohort." },
+    { title:"Browse the Curriculum", body:"Use the month strip at the top to jump to any module, or browse all 12 cards in the overview. Each card shows the lead facilitator, module theme, and any pending feedback." },
+    { title:"Submit Feedback", body:"Use the 'Additional Feedback' panel visible on every module page. Post a comment, submit an edit suggestion, or ask a question. Tag the field you're referencing for clarity." },
+    { title:"Feedback is Shared", body:"All facilitators see all feedback entries. The admin reviews, approves, or rejects edit requests. Approved changes are applied to the next deployment." },
+    { title:"Admin is Notified", body:"Every new Edit Request triggers an email to the curriculum admin. You don't need to follow up -- just submit and it will be reviewed." },
+    { title:"Notion Log", body:"All feedback is mirrored to a shared Notion database anyone can view. Use it as a running record of curriculum decisions across the cohort." },
   ];
   return (
     <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:24 }}>
@@ -256,7 +263,13 @@ function WelcomeModal({ onClose }) {
           <div style={{ display:"flex",flexDirection:"column",gap:11 }}>
             {steps.map((s,i)=>(
               <div key={i} style={{ display:"flex",gap:12,alignItems:"flex-start" }}>
-                <div style={{ width:34,height:34,borderRadius:9,background:T.navyLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0 }}>{s.icon}</div>
+                <div style={{ width:34,height:34,borderRadius:9,
+                  background:stepIcons[i].bg,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  fontSize:11,fontWeight:800,color:stepIcons[i].color,flexShrink:0,
+                  border:`1.5px solid ${stepIcons[i].color}33` }}>
+                  {stepIcons[i].label}
+                </div>
                 <div>
                   <div style={{ fontSize:12,fontWeight:700,color:T.navy,marginBottom:1 }}>{s.title}</div>
                   <div style={{ fontSize:11,color:T.textMid,lineHeight:1.5 }}>{s.body}</div>
