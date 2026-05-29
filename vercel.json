@@ -8,11 +8,11 @@
       "headers": [
         {
           "key": "X-Frame-Options",
-          "value": "ALLOW-FROM https://your-vlc-domain.vercel.app"
+          "value": "ALLOW-FROM https://vlc-kappa.vercel.app"
         },
         {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://your-vlc-domain.vercel.app https://localhost:*"
+          "value": "frame-ancestors 'self' https://vlc-kappa.vercel.app https://vlc-hjs-ahs-projects.vercel.app https://vlc-git-main-hjs-ahs-projects.vercel.app https://localhost:*"
         }
       ]
     }
