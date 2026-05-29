@@ -229,7 +229,7 @@ function WelcomeModal({ onClose }) {
       <div style={{ background:T.surface,borderRadius:16,maxWidth:560,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.2)",overflow:"hidden" }}>
         <div style={{ background:T.navy,padding:"24px 28px 18px" }}>
           <div style={{ fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:700,letterSpacing:"0.12em",marginBottom:4 }}>VERITY LEARNING CENTER</div>
-          <div style={{ fontSize:22,fontWeight:800,color:"#fff",marginBottom:4 }}>Disciple to Discipleship</div>
+          <div style={{ fontSize:22,fontWeight:800,color:"#fff",marginBottom:4 }}>Discipleship Curriculum Workspace</div>
           <div style={{ fontSize:13,color:"rgba(255,255,255,0.7)",lineHeight:1.5 }}>Your facilitator curriculum reference. Browse the 12-month outline, track the rotation schedule, and submit feedback — all in one place.</div>
         </div>
         <div style={{ padding:"20px 28px" }}>
@@ -765,8 +765,8 @@ export default function App() {
         display:"flex",alignItems:"center",justifyContent:"space-between",
         position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,0.06)",flexWrap:"wrap",gap:8 }}>
         <div>
-          <div style={{ fontSize:10,color:T.gold,fontWeight:700,letterSpacing:"0.12em",marginBottom:1 }}>VERITY LEARNING CENTER</div>
-          <div style={{ fontSize:16,fontWeight:800,color:T.navy }}>Disciple to Discipleship</div>
+          <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:1 }}><div style={{ width:28,height:28,borderRadius:6,background:T.navy,border:`1.5px solid ${T.gold}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,color:T.gold,letterSpacing:"0.05em",flexShrink:0 }}>DCW</div><div style={{ fontSize:10,color:T.gold,fontWeight:700,letterSpacing:"0.12em" }}>VERITY LEARNING CENTER</div></div>
+          <div style={{ fontSize:16,fontWeight:800,color:T.navy }}>Discipleship Curriculum Workspace</div>
           <div style={{ fontSize:10,color:T.textSub }}>12-Month Curriculum · Monday Sessions · Matthew 28:18-20</div>
         </div>
         <div style={{ display:"flex",alignItems:"center",gap:7,flexWrap:"wrap" }}>
