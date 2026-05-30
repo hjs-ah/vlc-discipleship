@@ -330,8 +330,16 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
   const filtered = filter==="all" ? relevantLogs : relevantLogs.filter(l=>l.type===filter||l.status===filter);
   const pending = relevantLogs.filter(l=>l.status==="pending").length;
 
+  const [nameError, setNameError] = useState(false);
+
   const submit = () => {
     if (!body.trim()) return;
+    // Block anonymous posts without a name
+    if (!autoName && !name.trim()) {
+      setNameError(true);
+      setTimeout(() => setNameError(false), 2000);
+      return;
+    }
     const fac = facilitators.find(f=>f.id===displayFacId);
     onAdd({
       id:Date.now(), moduleNum, moduleName,
@@ -339,7 +347,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
       fac_id: displayFacId || null,
       type, field:field||null, body, status:"pending", createdAt:ts()
     });
-    setBody(""); setField("");
+    setBody(""); setField(""); setName("");
   };
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[logs.length]);
@@ -423,10 +431,28 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
               </span>
             </div>
           ) : (
-            /* Anonymous / test mode -- freetext name */
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name (test mode)"
-              style={{ flex:"1 1 130px",padding:"5px 7px",border:`1px solid ${T.amber}`,borderRadius:6,
-                fontSize:11,background:"#FFFBF0",outline:"none",color:T.text }} />
+            /* Anonymous mode -- name required before posting */
+            <div style={{ display:"flex",flexDirection:"column",gap:2,flex:"1 1 130px" }}>
+              <label style={{ fontSize:9,fontWeight:700,color:T.red,letterSpacing:"0.08em" }}>
+                NAME REQUIRED
+              </label>
+              <input
+                value={name}
+                onChange={e=>setName(e.target.value)}
+                placeholder="Enter your name to comment"
+                maxLength={60}
+                style={{ width:"100%",padding:"5px 7px",
+                  border:`1.5px solid ${name.trim() ? T.borderMid : T.red}`,
+                  borderRadius:6,fontSize:11,
+                  background: name.trim() ? T.surface : "#FEF2F2",
+                  outline:"none",color:T.text,transition:"border-color 0.15s,background 0.15s" }}
+              />
+              {nameError && (
+                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
+                  Please enter your name before posting.
+                </span>
+              )}
+            </div>
           )}
           <select value={type} onChange={e=>setType(e.target.value)}
             style={{ flex:"0 0 110px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }}>
@@ -443,7 +469,16 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
           <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Add a comment, edit suggestion, or question..." rows={2}
             style={{ flex:1,padding:"6px 8px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",resize:"none",color:T.text,fontFamily:"inherit" }}/>
           <button onClick={submit}
-            style={{ padding:"0 14px",background:T.navy,color:"#fff",border:"none",borderRadius:6,cursor:"pointer",fontSize:11,fontWeight:600,alignSelf:"stretch" }}>Post</button>
+            disabled={!autoName && !name.trim() && !body.trim()}
+            style={{ padding:"0 14px",
+              background: (!autoName && !name.trim()) ? T.red : T.navy,
+              color:"#fff",border:"none",borderRadius:6,
+              cursor: (!autoName && !name.trim()) ? "not-allowed" : "pointer",
+              fontSize:11,fontWeight:600,alignSelf:"stretch",
+              opacity: (!autoName && !name.trim()) ? 0.6 : 1,
+              transition:"background 0.15s,opacity 0.15s" }}>
+            Post
+          </button>
         </div>
       </div>
     </div>
@@ -970,6 +1005,11 @@ export default function App() {
                   );
                 })}
               </div>
+              {nameError && (
+                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
+                  Please enter your name before posting.
+                </span>
+              )}
             </div>
           )}
 
@@ -982,6 +1022,11 @@ export default function App() {
                 <div style={{ fontSize:12,color:T.textSub }}>Every submission across all modules. {isAdmin?"Approve or reject edit requests here.":"Visible to all facilitators."}</div>
               </div>
               <FeedbackPanel moduleNum={null} moduleName={null} logs={logs} onAdd={addLog} onStatus={updateStatus} facilitators={facilitators} isAdmin={isAdmin} sessionUser={sessionUser}/>
+              {nameError && (
+                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
+                  Please enter your name before posting.
+                </span>
+              )}
             </div>
           )}
         </div>
