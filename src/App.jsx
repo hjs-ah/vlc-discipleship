@@ -318,6 +318,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
   const [field, setField] = useState("");
   const [body, setBody] = useState("");
   const [filter, setFilter] = useState("all");
+  const [nameError, setNameError] = useState(false);
   const bottomRef = useRef(null);
 
   // If a session user is detected, use them automatically
@@ -329,8 +330,6 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
   const relevantLogs = moduleNum!=null ? logs.filter(l=>l.moduleNum===moduleNum) : logs;
   const filtered = filter==="all" ? relevantLogs : relevantLogs.filter(l=>l.type===filter||l.status===filter);
   const pending = relevantLogs.filter(l=>l.status==="pending").length;
-
-  const [nameError, setNameError] = useState(false);
 
   const submit = () => {
     if (!body.trim()) return;
