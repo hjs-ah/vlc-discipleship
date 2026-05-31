@@ -25,15 +25,22 @@ const ADMIN_PIN     = import.meta.env.VITE_ADMIN_PIN ?? "1234";
 
 // --- SUPABASE HELPERS ---
 async function sbFetch(path, opts = {}) {
-  if (!SUPABASE_URL) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON || SUPABASE_ANON === "undefined") return null;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
       headers: { apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}`,
         "Content-Type":"application/json", Prefer:"return=representation" },
       ...opts,
     });
-    return res.ok ? res.json() : null;
-  } catch { return null; }
+    if (!res.ok) {
+      console.warn("[DCW] Supabase error:", res.status, path);
+      return null;
+    }
+    return res.json();
+  } catch(e) {
+    console.warn("[DCW] Supabase fetch failed:", e.message);
+    return null;
+  }
 }
 
 // --- SUPABASE AUTH ---
@@ -355,6 +362,12 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
     <div style={{ display:"flex",flexDirection:"column",height:"100%",background:T.surface,borderRadius:compact?0:10,border:compact?"none":`1px solid ${T.border}`,overflow:"hidden" }}>
       {/* Header */}
       <div style={{ padding:"12px 14px 10px",borderBottom:`1px solid ${T.border}`,background:T.surfaceAlt }}>
+        {(!SUPABASE_ANON || SUPABASE_ANON === "undefined") && (
+          <div style={{ background:"#FEF2F2",border:`1px solid ${T.red}33`,borderRadius:6,
+            padding:"5px 10px",marginBottom:8,fontSize:9,color:T.red,fontWeight:600 }}>
+            Comments are not being saved -- Supabase not connected.
+          </div>
+        )}
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
           <div style={{ fontSize:12,fontWeight:700,color:T.navy }}>
             {moduleNum!=null ? "Additional Feedback" : "All Feedback"}
@@ -414,20 +427,25 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
       <div style={{ padding:"10px 12px",borderTop:`1px solid ${T.border}`,background:T.surfaceAlt }}>
         <div style={{ display:"flex",gap:5,marginBottom:6,flexWrap:"wrap" }}>
           {autoName ? (
-            /* Authenticated -- show name badge, no input needed */
-            <div style={{ display:"flex",alignItems:"center",gap:6,flex:"1 1 130px",
-              background:T.navyLight,border:`1px solid ${T.navyMid}44`,borderRadius:6,padding:"4px 8px" }}>
-              {/* Show avatar from facilitator list, or fallback to sessionUser directly */}
-              {(facilitators.find(f=>f.id===autoFacId) || sessionUser) &&
-                <Avatar fac={facilitators.find(f=>f.id===autoFacId) || {
-                  initials: sessionUser?.initials || (autoName||"?").split(" ").map(w=>w[0]).join("").toUpperCase(),
-                  color: sessionUser?.color || T.navy,
-                  avatarUrl: sessionUser?.avatarUrl || sessionUser?.avatar_url || null,
-                }} size={18}/>}
-              <span style={{ fontSize:11,fontWeight:600,color:T.navy }}>{autoName}</span>
-              <span style={{ fontSize:9,color:T.textSub,marginLeft:"auto" }}>
-                {sessionUser?.role === "admin" ? "admin" : "signed in"}
-              </span>
+            /* Authenticated -- identity locked to session user */
+            <div style={{ display:"flex",alignItems:"center",gap:7,flex:"1 1 130px",
+              background:T.navyLight,border:`1px solid ${T.navyMid}33`,
+              borderRadius:6,padding:"5px 10px" }}>
+              <Avatar fac={{
+                initials: sessionUser?.initials ||
+                  (autoName).split(" ").filter(Boolean).map(w=>w[0]).join("").toUpperCase().slice(0,2),
+                color: sessionUser?.color || T.navy,
+                avatarUrl: sessionUser?.avatarUrl || sessionUser?.avatar_url || null,
+              }} size={20}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11,fontWeight:700,color:T.navy,
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>
+                  {autoName}
+                </div>
+                <div style={{ fontSize:9,color:T.textSub }}>
+                  {sessionUser?.role === "admin" ? "Admin" : "Facilitator"}
+                </div>
+              </div>
             </div>
           ) : (
             /* Anonymous mode -- name required before posting */
@@ -444,7 +462,8 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
                   border:`1.5px solid ${name.trim() ? T.borderMid : T.red}`,
                   borderRadius:6,fontSize:11,
                   background: name.trim() ? T.surface : "#FEF2F2",
-                  outline:"none",color:T.text,transition:"border-color 0.15s,background 0.15s" }}
+                  outline:"none",color:T.text,
+                  transition:"border-color 0.15s,background 0.15s" }}
               />
               {nameError && (
                 <span style={{ fontSize:9,color:T.red,fontWeight:600,marginTop:2 }}>
@@ -810,9 +829,9 @@ export default function App() {
     }
 
     // --- Priority 2 & 3: Supabase (session or data) ---
-    if (!SUPABASE_URL || !SUPABASE_ANON) {
+    if (!SUPABASE_URL || !SUPABASE_ANON || SUPABASE_ANON === "undefined") {
       if (!vlcName) {
-        console.warn("[DCW] Supabase not configured and no VLC params -- anonymous mode.");
+        console.warn("[DCW] Supabase not configured and no VLC params -- anonymous mode. Set VITE_SUPABASE_ANON_KEY in Vercel.");
       }
       return;
     }
