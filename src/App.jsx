@@ -447,7 +447,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
                   outline:"none",color:T.text,transition:"border-color 0.15s,background 0.15s" }}
               />
               {nameError && (
-                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
+                <span style={{ fontSize:9,color:T.red,fontWeight:600,marginTop:2 }}>
                   Please enter your name before posting.
                 </span>
               )}
@@ -1004,11 +1004,7 @@ export default function App() {
                   );
                 })}
               </div>
-              {nameError && (
-                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
-                  Please enter your name before posting.
-                </span>
-              )}
+
             </div>
           )}
 
@@ -1021,11 +1017,7 @@ export default function App() {
                 <div style={{ fontSize:12,color:T.textSub }}>Every submission across all modules. {isAdmin?"Approve or reject edit requests here.":"Visible to all facilitators."}</div>
               </div>
               <FeedbackPanel moduleNum={null} moduleName={null} logs={logs} onAdd={addLog} onStatus={updateStatus} facilitators={facilitators} isAdmin={isAdmin} sessionUser={sessionUser}/>
-              {nameError && (
-                <span style={{ fontSize:9,color:T.red,fontWeight:600 }}>
-                  Please enter your name before posting.
-                </span>
-              )}
+
             </div>
           )}
         </div>
