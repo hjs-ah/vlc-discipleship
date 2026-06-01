@@ -935,13 +935,21 @@ export default function App() {
         body: JSON.stringify(sbPayload),
       });
       if (result) {
-        console.log("[DCW] Comment saved to Supabase");
+        const saved = Array.isArray(result) ? result[0] : result;
+        console.log("[DCW] Comment saved to Supabase, uuid:", saved?.id);
+        // Replace the local Date.now() id with the real Supabase UUID
+        // so approve/reject/delete can find the row by the correct id
+        if (saved?.id) {
+          setLogs(prev => prev.map(l =>
+            l.id === resolvedEntry.id ? { ...l, id: saved.id } : l
+          ));
+        }
         // Sync to Notion via server-side Vercel function (avoids CORS)
         try {
           await fetch("/api/notion-sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ entry: resolvedEntry, moduleName: modName }),
+            body: JSON.stringify({ entry: { ...resolvedEntry, id: saved?.id }, moduleName: modName }),
           });
         } catch(e) { /* Notion sync failure is non-critical */ }
       }
