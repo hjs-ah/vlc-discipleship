@@ -308,7 +308,7 @@ function Editable({ value, onChange, multiline, style }) {
 }
 
 // --- FEEDBACK PANEL ---
-const STATUS_CHIP = { pending:{bg:T.amberLight,text:T.amber}, approved:{bg:T.greenLight,text:T.green}, rejected:{bg:"#FEE2E2",text:T.red} };
+const STATUS_CHIP = { pending:{bg:T.amberLight,text:T.amber}, resolved:{bg:T.greenLight,text:T.green} };
 const TYPE_CHIP   = { comment:{bg:T.navyLight,text:T.navy}, edit:{bg:T.purpleLight,text:T.purple}, question:{bg:T.goldLight,text:T.gold} };
 
 function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitators, isAdmin, compact, sessionUser }) {
@@ -375,7 +375,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
           </div>
         </div>
         <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-          {["all","comment","edit","question","pending","approved"].map(f=>(
+          {["all","pending","resolved","comment","edit","question"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
               style={{ fontSize:9,padding:"2px 7px",borderRadius:20,border:`1px solid ${filter===f?T.navyMid:T.border}`,
                 background:filter===f?T.navyLight:"transparent",color:filter===f?T.navy:T.textSub,cursor:"pointer",fontWeight:600 }}>
@@ -410,14 +410,19 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
               <div style={{ fontSize:11,color:T.textMid,lineHeight:1.5 }}>{log.body}</div>
               {isAdmin && (
                 <div style={{ display:"flex",gap:5,marginTop:6,flexWrap:"wrap" }}>
-                  {log.status==="pending" && <>
-                    <button onClick={()=>onStatus(log.id,"approved")}
-                      style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.green}`,background:T.greenLight,color:T.green,cursor:"pointer",fontWeight:600 }}>Approve</button>
-                    <button onClick={()=>onStatus(log.id,"rejected")}
-                      style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.red}`,background:"#FEE2E2",color:T.red,cursor:"pointer",fontWeight:600 }}>Reject</button>
-                  </>}
-                  <button onClick={()=>{ if(window.confirm("Delete this comment permanently?")) onStatus(log.id,"deleted"); }}
-                    style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.borderMid}`,background:T.surfaceAlt,color:T.textSub,cursor:"pointer",fontWeight:600 }}>
+                  {log.status==="pending" && (
+                    <button onClick={()=>onStatus(log.id,"resolved")}
+                      style={{ fontSize:10,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.green}`,
+                        background:T.greenLight,color:T.green,cursor:"pointer",fontWeight:600 }}>
+                      Mark Resolved
+                    </button>
+                  )}
+                  {log.status==="resolved" && (
+                    <span style={{ fontSize:10,color:T.green,fontWeight:600,fontStyle:"italic" }}>Resolved</span>
+                  )}
+                  <button onClick={()=>{ if(window.confirm("Delete this comment? This cannot be undone.")) onStatus(log.id,"deleted"); }}
+                    style={{ fontSize:10,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.borderMid}`,
+                      background:T.surfaceAlt,color:T.textSub,cursor:"pointer",fontWeight:600 }}>
                     Delete
                   </button>
                 </div>
@@ -841,10 +846,18 @@ export default function App() {
       };
       setSessionUser(vlcProfile);
       if (vlcRole === "admin") setIsAdmin(true);
-      // Also inject this person into the facilitator list if they aren't already there
+      // Inject into facilitator list only if not already present by name or slot
+      // This prevents duplicates when Marquia/George log in via VLC params
       setFac(prev => {
-        const alreadyIn = prev.some(f => f.id === vlcId || f.name === vlcName);
-        if (alreadyIn) return prev;
+        const alreadyIn = prev.some(f =>
+          f.name === vlcName ||
+          f.uuid === vlcId ||
+          f.id === vlcId
+        );
+        if (alreadyIn) {
+          console.log("[DCW] VLC user already in facilitator list, skipping inject:", vlcName);
+          return prev;
+        }
         return [...prev, { ...vlcProfile, id: vlcId || vlcName }];
       });
     }
@@ -857,28 +870,33 @@ export default function App() {
       return;
     }
 
-    sbFetch("curriculum_facilitators?select=*&order=sort_order.asc").then(rows=>{
+    sbFetch("dcw_facilitators?select=*&order=sort_order.asc").then(rows=>{
       if (rows?.length) {
         console.log("[DCW] Loaded", rows.length, "facilitators from Supabase");
         setFac(prev => {
           // Merge: keep any VLC-injected user, replace the rest with Supabase data
           const vlcEntry = prev.find(f => f.id === vlcId || f.name === vlcName);
           const sbEntries = rows.map(r=>({
-            id:r.id, name:r.name,
+            id:   r.slot,     // slot (A/B/C/D) is the key used by module rotation
+            uuid: r.id,       // real UUID kept for reference
+            name: r.name,
             initials: r.initials || r.name.split(" ").map(w=>w[0]).join("").toUpperCase(),
-            color:r.color||T.navy, light:r.light||T.navyLight,
-            avatarUrl:r.avatar_url||null, role:r.role||null,
+            color: r.color || T.navy,
+            light: r.light || T.navyLight,
+            avatarUrl: r.avatar_url || null,
+            role: r.role || null,
+            slot: r.slot,
           }));
-          // If VLC user is already in Supabase data, no need to keep the injected one
-          const vlcInSb = vlcEntry && sbEntries.some(f => f.id === vlcEntry.id);
+          // Match by name since VLC-injected entry uses name not slot
+          const vlcInSb = vlcEntry && sbEntries.some(f => f.name === vlcEntry.name);
           return vlcEntry && !vlcInSb ? [vlcEntry, ...sbEntries] : sbEntries;
         });
       } else {
-        console.warn("[DCW] curriculum_facilitators returned no rows -- check RLS and profile roles");
+        console.warn("[DCW] dcw_facilitators returned no rows -- check RLS and profile roles");
       }
     });
 
-    sbFetch("curriculum_edits?select=*&order=created_at.asc").then(rows=>{
+    sbFetch("dcw_feedback?select=*&order=created_at.asc").then(rows=>{
       if (rows?.length) {
         // Map Supabase snake_case columns to camelCase for React state
         const mapped = rows.map(r => ({
@@ -946,7 +964,7 @@ export default function App() {
     };
 
     if (SUPABASE_URL && SUPABASE_ANON) {
-      const result = await sbFetch("curriculum_edits", {
+      const result = await sbFetch("dcw_feedback", {
         method:"POST",
         body: JSON.stringify(sbPayload),
       });
@@ -985,18 +1003,30 @@ export default function App() {
     if (resolvedEntry.type==="edit") await sendAdminEmail(resolvedEntry, modName);
   },[sessionUser]);
 
-  const updateStatus = useCallback((id, status)=>{
+  const updateStatus = useCallback(async (id, status) => {
     if (status === "deleted") {
       setLogs(prev => prev.filter(l => l.id !== id));
       if (SUPABASE_URL && SUPABASE_ANON) {
-        sbFetch(`curriculum_edits?id=eq.${id}`, { method:"DELETE" });
+        await sbFetch(`dcw_feedback?id=eq.${id}`, { method:"DELETE" });
       }
     } else {
       setLogs(prev => prev.map(l => l.id===id ? {...l, status} : l));
       if (SUPABASE_URL && SUPABASE_ANON) {
-        sbFetch(`curriculum_edits?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({status}) });
+        await sbFetch(`dcw_feedback?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({status}) });
       }
     }
+    // Sync status change to Notion
+    try {
+      const res = await fetch("/api/notion-update", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ supabaseId: String(id), status }),
+      });
+      const data = await res.json().catch(()=>({}));
+      if (data.ok) console.log("[DCW] Notion status updated to:", status);
+      else if (data.skipped) { /* Notion not configured */ }
+      else console.warn("[DCW] Notion status update failed:", data);
+    } catch(e) { /* non-critical */ }
   },[]);
 
   const handleSave = () => {
