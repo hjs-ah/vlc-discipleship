@@ -38,15 +38,25 @@ async function sbFetch(path, opts = {}) {
   if (!SUPABASE_URL || !SUPABASE_ANON || SUPABASE_ANON === "undefined") return null;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-      headers: { apikey:SUPABASE_ANON, Authorization:`Bearer ${SUPABASE_ANON}`,
-        "Content-Type":"application/json", Prefer:"return=representation" },
+      headers: {
+        apikey: SUPABASE_ANON,
+        Authorization: `Bearer ${SUPABASE_ANON}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
       ...opts,
     });
     if (!res.ok) {
-      console.warn("[DCW] Supabase error:", res.status, path);
+      const errText = await res.text().catch(()=>"");
+      console.warn("[DCW] Supabase error:", res.status, path, errText.slice(0,200));
       return null;
     }
-    return res.json();
+    // 204 No Content is a valid success for DELETE/PATCH when no rows returned
+    if (res.status === 204) return { ok: true };
+    const text = await res.text();
+    if (!text) return { ok: true };
+    try { return JSON.parse(text); }
+    catch { return { ok: true }; }
   } catch(e) {
     console.warn("[DCW] Supabase fetch failed:", e.message);
     return null;
@@ -411,7 +421,8 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
               {isAdmin && (
                 <div style={{ display:"flex",gap:5,marginTop:6,flexWrap:"wrap" }}>
                   {log.status==="pending" && (
-                    <button onClick={()=>onStatus(log.id,"resolved")}
+                    <button
+                      onClick={(e)=>{ e.currentTarget.disabled=true; onStatus(log.id,"resolved"); }}
                       style={{ fontSize:10,padding:"3px 10px",borderRadius:20,border:`1px solid ${T.green}`,
                         background:T.greenLight,color:T.green,cursor:"pointer",fontWeight:600 }}>
                       Mark Resolved
@@ -744,9 +755,31 @@ function RotationView({ modules, logs, onAdd, onStatus, facilitators, isAdmin })
 
         {/* Rotation grid */}
         <div style={{ background:T.surface,border:`1px solid ${T.border}`,borderRadius:10,overflow:"hidden" }}>
-          <div style={{ padding:"12px 18px",borderBottom:`1px solid ${T.border}` }}>
-            <div style={{ fontSize:12,fontWeight:700,color:T.navy }}>MONTHLY ROTATION GRID</div>
-            <div style={{ fontSize:10,color:T.textSub,marginTop:2 }}>{"Lead ( filled ) / Support ( ring )"}</div>
+          <div style={{ padding:"14px 18px",borderBottom:`1px solid ${T.border}` }}>
+            <div style={{ fontSize:12,fontWeight:700,color:T.navy,marginBottom:10 }}>MONTHLY ROTATION GRID</div>
+            <div style={{ display:"flex",gap:24,flexWrap:"wrap" }}>
+              <div style={{ display:"flex",alignItems:"flex-start",gap:8 }}>
+                <span style={{ width:14,height:14,borderRadius:"50%",background:T.navy,
+                  display:"inline-block",flexShrink:0,marginTop:2 }}/>
+                <div>
+                  <div style={{ fontSize:11,fontWeight:700,color:T.navy }}>Lead</div>
+                  <div style={{ fontSize:10,color:T.textSub,lineHeight:1.4 }}>
+                    Primary teacher. Owns session prep, LMS uploads, and delivery for the month.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display:"flex",alignItems:"flex-start",gap:8 }}>
+                <span style={{ width:14,height:14,borderRadius:"50%",
+                  border:`2px solid ${T.borderMid}`,background:"transparent",
+                  display:"inline-block",flexShrink:0,marginTop:2 }}/>
+                <div>
+                  <div style={{ fontSize:11,fontWeight:700,color:T.textMid }}>Support</div>
+                  <div style={{ fontSize:10,color:T.textSub,lineHeight:1.4 }}>
+                    Co-facilitator. Leads small groups, covers if needed, gives session feedback.
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%",borderCollapse:"collapse" }}>
@@ -1004,18 +1037,32 @@ export default function App() {
   },[sessionUser]);
 
   const updateStatus = useCallback(async (id, status) => {
+    // Optimistic local update first
     if (status === "deleted") {
       setLogs(prev => prev.filter(l => l.id !== id));
-      if (SUPABASE_URL && SUPABASE_ANON) {
-        await sbFetch(`dcw_feedback?id=eq.${id}`, { method:"DELETE" });
-      }
     } else {
       setLogs(prev => prev.map(l => l.id===id ? {...l, status} : l));
-      if (SUPABASE_URL && SUPABASE_ANON) {
-        await sbFetch(`dcw_feedback?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({status}) });
+    }
+
+    // Supabase update
+    if (SUPABASE_URL && SUPABASE_ANON) {
+      if (status === "deleted") {
+        const delResult = await sbFetch(`dcw_feedback?id=eq.${id}`, { method:"DELETE" });
+        console.log("[DCW] Supabase DELETE result:", delResult !== null ? "ok" : "failed/null");
+      } else {
+        // Use upsert-style PATCH with explicit content-type
+        const patchResult = await sbFetch(
+          `dcw_feedback?id=eq.${id}`,
+          { method:"PATCH", body: JSON.stringify({ status }) }
+        );
+        console.log("[DCW] Supabase PATCH result:", patchResult !== null ? "ok" : "failed/null", "| id:", id, "| status:", status);
+        if (patchResult === null) {
+          console.warn("[DCW] PATCH returned null -- check that id exists in dcw_feedback and status value is valid");
+        }
       }
     }
-    // Sync status change to Notion
+
+    // Notion update (non-blocking, best-effort)
     try {
       const res = await fetch("/api/notion-update", {
         method:"POST",
