@@ -112,10 +112,10 @@ async function syncToNotion(entry, moduleName) {
 
 // --- FALLBACK FACILITATORS (used when Supabase not connected) ---
 const DEFAULT_FACILITATORS = [
-  { id:"A", name:"Antone Holmes",     initials:"AH", color:T.navy,   light:T.navyLight,   avatarUrl:null },
+  { id:"A", name:"Vanessa Wilkerson", initials:"VW", color:T.navy,   light:T.navyLight,   avatarUrl:null },
   { id:"B", name:"Marquia Holmes",    initials:"MH", color:T.green,  light:T.greenLight,  avatarUrl:null },
-  { id:"C", name:"Vanessa Wilkerson", initials:"VW", color:T.purple, light:T.purpleLight, avatarUrl:null },
-  { id:"D", name:"George Sephes",     initials:"GS", color:T.rust,   light:T.rustLight,   avatarUrl:null },
+  { id:"C", name:"George Sephes",     initials:"GS", color:T.purple, light:T.purpleLight, avatarUrl:null },
+  { id:"D", name:"Antone Holmes",     initials:"AH", color:T.rust,   light:T.rustLight,   avatarUrl:null },
 ];
 
 // --- MODULES ---
@@ -319,7 +319,7 @@ function Editable({ value, onChange, multiline, style }) {
 
 // --- FEEDBACK PANEL ---
 const STATUS_CHIP = { pending:{bg:T.amberLight,text:T.amber}, resolved:{bg:T.greenLight,text:T.green} };
-const TYPE_CHIP   = { comment:{bg:T.navyLight,text:T.navy}, edit:{bg:T.purpleLight,text:T.purple}, question:{bg:T.goldLight,text:T.gold} };
+const TYPE_CHIP   = { comment:{bg:T.navyLight,text:T.navy}, question:{bg:T.goldLight,text:T.gold} };
 
 function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitators, isAdmin, compact, sessionUser }) {
   const [name, setName] = useState("");
@@ -385,7 +385,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
           </div>
         </div>
         <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-          {["all","pending","resolved","comment","edit","question"].map(f=>(
+          {["all","pending","resolved","feedback","question"].map(f=>(
             <button key={f} onClick={()=>setFilter(f)}
               style={{ fontSize:9,padding:"2px 7px",borderRadius:20,border:`1px solid ${filter===f?T.navyMid:T.border}`,
                 background:filter===f?T.navyLight:"transparent",color:filter===f?T.navy:T.textSub,cursor:"pointer",fontWeight:600 }}>
@@ -495,14 +495,10 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
           )}
           <select value={type} onChange={e=>setType(e.target.value)}
             style={{ flex:"0 0 110px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }}>
-            <option value="comment">Comment</option>
-            <option value="edit">Edit Request</option>
+            <option value="comment">Feedback</option>
             <option value="question">Question</option>
           </select>
-          {type==="edit" && (
-            <input value={field} onChange={e=>setField(e.target.value)} placeholder="Field (e.g. delivery)"
-              style={{ flex:"1 1 120px",padding:"5px 7px",border:`1px solid ${T.borderMid}`,borderRadius:6,fontSize:11,background:T.surface,outline:"none",color:T.text }} />
-          )}
+
         </div>
         <div style={{ display:"flex",gap:6 }}>
           <textarea value={body} onChange={e=>setBody(e.target.value)} placeholder="Add a comment, edit suggestion, or question..." rows={2}
