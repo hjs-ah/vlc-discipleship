@@ -30,7 +30,7 @@ console.log(
   "[DCW v5] Config check:",
   "URL:", SUPABASE_URL ? SUPABASE_URL.slice(0,30)+"..." : "MISSING",
   "| ANON key:", SUPABASE_ANON ? "present ("+SUPABASE_ANON.slice(0,8)+"...)" : "MISSING",
-  "| Notion DB:", NOTION_DB_ID ? "set" : "not set"
+  "| Notion DB:", NOTION_DB_ID ? "set ("+NOTION_DB_ID.slice(0,8)+"...)" : "not set"
 );
 
 // --- SUPABASE HELPERS ---
@@ -408,12 +408,18 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
                 </div>
               </div>
               <div style={{ fontSize:11,color:T.textMid,lineHeight:1.5 }}>{log.body}</div>
-              {isAdmin && log.status==="pending" && (
-                <div style={{ display:"flex",gap:5,marginTop:6 }}>
-                  <button onClick={()=>onStatus(log.id,"approved")}
-                    style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.green}`,background:T.greenLight,color:T.green,cursor:"pointer",fontWeight:600 }}>Approve</button>
-                  <button onClick={()=>onStatus(log.id,"rejected")}
-                    style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.red}`,background:"#FEE2E2",color:T.red,cursor:"pointer",fontWeight:600 }}>Reject</button>
+              {isAdmin && (
+                <div style={{ display:"flex",gap:5,marginTop:6,flexWrap:"wrap" }}>
+                  {log.status==="pending" && <>
+                    <button onClick={()=>onStatus(log.id,"approved")}
+                      style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.green}`,background:T.greenLight,color:T.green,cursor:"pointer",fontWeight:600 }}>Approve</button>
+                    <button onClick={()=>onStatus(log.id,"rejected")}
+                      style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.red}`,background:"#FEE2E2",color:T.red,cursor:"pointer",fontWeight:600 }}>Reject</button>
+                  </>}
+                  <button onClick={()=>{ if(window.confirm("Delete this comment permanently?")) onStatus(log.id,"deleted"); }}
+                    style={{ fontSize:10,padding:"2px 9px",borderRadius:20,border:`1px solid ${T.borderMid}`,background:T.surfaceAlt,color:T.textSub,cursor:"pointer",fontWeight:600 }}>
+                    Delete
+                  </button>
                 </div>
               )}
             </div>
@@ -774,6 +780,18 @@ function RotationView({ modules, logs, onAdd, onStatus, facilitators, isAdmin })
 }
 
 // --- ROOT ---
+function useWindowWidth() {
+  const [width, setWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1024
+  );
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return width;
+}
+
 export default function App() {
   const [modules, setModules]       = useState(DEFAULT_MODULES);
   const [facilitators, setFac]      = useState(DEFAULT_FACILITATORS);
@@ -784,7 +802,11 @@ export default function App() {
   const [showPin, setShowPin]       = useState(false);
   const [saved, setSaved]           = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
-  const [sessionUser, setSessionUser] = useState(null); // auto-detected from Supabase auth
+  const [sessionUser, setSessionUser] = useState(null);
+  const windowWidth = useWindowWidth();
+  const isMobile = windowWidth < 768;
+  // On mobile: panel starts closed; on desktop: always open
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   const selectedMod = active ? modules.find(m=>m.num===active) : null;
   const pendingCount = logs.filter(l=>l.status==="pending").length;
@@ -928,9 +950,18 @@ export default function App() {
     if (resolvedEntry.type==="edit") await sendAdminEmail(resolvedEntry, modName);
   },[sessionUser]);
 
-  const updateStatus = useCallback((id,status)=>{
-    setLogs(prev=>prev.map(l=>l.id===id?{...l,status}:l));
-    if (SUPABASE_URL) sbFetch(`curriculum_edits?id=eq.${id}`,{method:"PATCH",body:JSON.stringify({status})});
+  const updateStatus = useCallback((id, status)=>{
+    if (status === "deleted") {
+      setLogs(prev => prev.filter(l => l.id !== id));
+      if (SUPABASE_URL && SUPABASE_ANON) {
+        sbFetch(`curriculum_edits?id=eq.${id}`, { method:"DELETE" });
+      }
+    } else {
+      setLogs(prev => prev.map(l => l.id===id ? {...l, status} : l));
+      if (SUPABASE_URL && SUPABASE_ANON) {
+        sbFetch(`curriculum_edits?id=eq.${id}`, { method:"PATCH", body:JSON.stringify({status}) });
+      }
+    }
   },[]);
 
   const handleSave = () => {
@@ -1073,29 +1104,115 @@ export default function App() {
           )}
         </div>
 
-        {/* PERSISTENT FEEDBACK PANEL -- always visible, scoped to active module or global */}
+        {/* PERSISTENT FEEDBACK PANEL -- sidebar on desktop, overlay on mobile */}
         {(view==="overview"||view==="detail"||view==="rotation") && (
-          <div style={{
-            width:300, flexShrink:0,
-            borderLeft:`1px solid ${T.border}`,
-            display:"flex", flexDirection:"column",
-            height:"100%", overflow:"hidden",
-            background:T.surface, minHeight:0,
-          }}>
-            <FeedbackPanel
-              moduleNum={selectedMod ? active : null}
-              moduleName={
-                view==="rotation" ? "Rotation Schedule" :
-                selectedMod ? selectedMod.month+" -- "+selectedMod.title : null
-              }
-              logs={logs}
-              onAdd={addLog}
-              onStatus={updateStatus}
-              facilitators={facilitators}
-              isAdmin={isAdmin}
-              compact={true}
-            />
-          </div>
+          isMobile ? (
+            <>
+              {/* Mobile: floating toggle button */}
+              <button
+                onClick={() => setFeedbackOpen(o => !o)}
+                style={{
+                  position:"fixed", bottom:20, right:20, zIndex:200,
+                  width:52, height:52, borderRadius:"50%",
+                  background: feedbackOpen ? T.navy : T.gold,
+                  color:"#fff", border:"none", cursor:"pointer",
+                  boxShadow:"0 4px 16px rgba(0,0,0,0.18)",
+                  fontSize:11, fontWeight:700,
+                  display:"flex", flexDirection:"column",
+                  alignItems:"center", justifyContent:"center", gap:1,
+                  transition:"background 0.2s",
+                }}>
+                <span style={{ fontSize:16, lineHeight:1 }}>{feedbackOpen ? "x" : "+"}</span>
+                <span style={{ fontSize:8, letterSpacing:"0.02em" }}>
+                  {feedbackOpen ? "Close" : "Notes"}
+                </span>
+                {!feedbackOpen && pendingCount > 0 && (
+                  <div style={{
+                    position:"absolute", top:4, right:4,
+                    width:16, height:16, borderRadius:"50%",
+                    background:T.red, color:"#fff",
+                    fontSize:8, fontWeight:800,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                  }}>{pendingCount}</div>
+                )}
+              </button>
+
+              {/* Mobile: slide-up overlay panel */}
+              {feedbackOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    onClick={() => setFeedbackOpen(false)}
+                    style={{
+                      position:"fixed", inset:0, zIndex:150,
+                      background:"rgba(0,0,0,0.35)",
+                    }}
+                  />
+                  {/* Panel */}
+                  <div style={{
+                    position:"fixed", bottom:0, left:0, right:0, zIndex:160,
+                    height:"70vh",
+                    borderRadius:"16px 16px 0 0",
+                    overflow:"hidden",
+                    boxShadow:"0 -4px 24px rgba(0,0,0,0.15)",
+                    display:"flex", flexDirection:"column",
+                  }}>
+                    {/* Drag handle */}
+                    <div style={{
+                      background:T.surface,
+                      padding:"10px 0 6px",
+                      display:"flex", justifyContent:"center",
+                      borderBottom:`1px solid ${T.border}`,
+                      flexShrink:0,
+                    }}>
+                      <div style={{
+                        width:36, height:4, borderRadius:2,
+                        background:T.borderMid,
+                      }}/>
+                    </div>
+                    <FeedbackPanel
+                      moduleNum={selectedMod ? active : null}
+                      moduleName={
+                        view==="rotation" ? "Rotation Schedule" :
+                        selectedMod ? selectedMod.month+" -- "+selectedMod.title : null
+                      }
+                      logs={logs}
+                      onAdd={addLog}
+                      onStatus={updateStatus}
+                      facilitators={facilitators}
+                      isAdmin={isAdmin}
+                      compact={true}
+                      sessionUser={sessionUser}
+                    />
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            /* Desktop: fixed right sidebar */
+            <div style={{
+              width:300, flexShrink:0,
+              borderLeft:`1px solid ${T.border}`,
+              display:"flex", flexDirection:"column",
+              height:"100%", overflow:"hidden",
+              background:T.surface, minHeight:0,
+            }}>
+              <FeedbackPanel
+                moduleNum={selectedMod ? active : null}
+                moduleName={
+                  view==="rotation" ? "Rotation Schedule" :
+                  selectedMod ? selectedMod.month+" -- "+selectedMod.title : null
+                }
+                logs={logs}
+                onAdd={addLog}
+                onStatus={updateStatus}
+                facilitators={facilitators}
+                isAdmin={isAdmin}
+                compact={true}
+                sessionUser={sessionUser}
+              />
+            </div>
+          )
         )}
       </div>
     </div>
