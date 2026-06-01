@@ -317,7 +317,7 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
   const [type, setType] = useState("comment");
   const [field, setField] = useState("");
   const [body, setBody] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("pending");
   const [nameError, setNameError] = useState(false);
   const bottomRef = useRef(null);
 
@@ -879,7 +879,23 @@ export default function App() {
     });
 
     sbFetch("curriculum_edits?select=*&order=created_at.asc").then(rows=>{
-      if (rows?.length) setLogs(rows);
+      if (rows?.length) {
+        // Map Supabase snake_case columns to camelCase for React state
+        const mapped = rows.map(r => ({
+          id:         r.id,            // real UUID from Supabase
+          moduleNum:  r.module_num,
+          moduleName: r.module_name,
+          author:     r.author,
+          fac_id:     r.fac_id,
+          type:       r.type,
+          field:      r.field,
+          body:       r.body,
+          status:     r.status,
+          createdAt:  r.created_at,
+        }));
+        console.log("[DCW] Loaded", mapped.length, "feedback entries from Supabase");
+        setLogs(mapped);
+      }
     });
 
     // Priority 2: Supabase session (standalone, not iframe)
@@ -946,12 +962,23 @@ export default function App() {
         }
         // Sync to Notion via server-side Vercel function (avoids CORS)
         try {
-          await fetch("/api/notion-sync", {
+          console.log("[DCW] Calling /api/notion-sync...");
+          const notionRes = await fetch("/api/notion-sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ entry: { ...resolvedEntry, id: saved?.id }, moduleName: modName }),
           });
-        } catch(e) { /* Notion sync failure is non-critical */ }
+          const notionData = await notionRes.json().catch(() => ({}));
+          if (notionData.skipped) {
+            console.warn("[DCW] Notion sync skipped -- NOTION_TOKEN or NOTION_DB_ID not set in Vercel server-side env vars");
+          } else if (notionData.ok) {
+            console.log("[DCW] Notion sync successful");
+          } else {
+            console.warn("[DCW] Notion sync failed:", notionData);
+          }
+        } catch(e) {
+          console.warn("[DCW] Notion sync error:", e.message);
+        }
       }
     }
 
