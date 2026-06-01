@@ -23,6 +23,16 @@ const NOTION_TOKEN  = import.meta.env.VITE_NOTION_TOKEN;
 const NOTION_DB_ID  = "d90b58836a1e49f5ba51f6bc8969b412"; // D2D Curriculum Feedback Log -- https://www.notion.so/d90b58836a1e49f5ba51f6bc8969b412
 const ADMIN_PIN     = import.meta.env.VITE_ADMIN_PIN ?? "1234";
 
+// --- STARTUP DIAGNOSTIC ---
+// This log fires immediately on load -- check the console to confirm
+// the correct version is deployed and env vars are being read
+console.log(
+  "[DCW v5] Config check:",
+  "URL:", SUPABASE_URL ? SUPABASE_URL.slice(0,30)+"..." : "MISSING",
+  "| ANON key:", SUPABASE_ANON ? "present ("+SUPABASE_ANON.slice(0,8)+"...)" : "MISSING",
+  "| Notion DB:", NOTION_DB_ID ? "set" : "not set"
+);
+
 // --- SUPABASE HELPERS ---
 async function sbFetch(path, opts = {}) {
   if (!SUPABASE_URL || !SUPABASE_ANON || SUPABASE_ANON === "undefined") return null;
