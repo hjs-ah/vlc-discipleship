@@ -94,27 +94,10 @@ async function sendAdminEmail(entry, moduleName) {
 
 // --- NOTION SYNC ---
 async function syncToNotion(entry, moduleName) {
-  if (!NOTION_TOKEN || !NOTION_DB_ID) return;
-  try {
-    await fetch("https://api.notion.com/v1/pages", {
-      method:"POST",
-      headers:{ Authorization:`Bearer ${NOTION_TOKEN}`, "Content-Type":"application/json",
-        "Notion-Version":"2022-06-28" },
-      body: JSON.stringify({
-        parent:{ database_id: NOTION_DB_ID },
-        properties:{
-          Name:{ title:[{ text:{ content:`${entry.type} -- ${moduleName}` }}]},
-          Author:{ rich_text:[{ text:{ content: entry.author }}]},
-          Type:{ select:{ name: entry.type }},
-          Module:{ rich_text:[{ text:{ content: moduleName }}]},
-          Field:{ rich_text:[{ text:{ content: entry.field||"" }}]},
-          Body:{ rich_text:[{ text:{ content: entry.body }}]},
-          Status:{ select:{ name: entry.status }},
-          Date:{ date:{ start: new Date().toISOString() }},
-        },
-      }),
-    });
-  } catch {}
+  // Notion API blocks direct browser calls (CORS policy).
+  // Sync is handled server-side via /api/notion-sync Vercel function.
+  // This function is intentionally a no-op in the browser.
+  return;
 }
 
 // --- FALLBACK FACILITATORS (used when Supabase not connected) ---
@@ -350,18 +333,24 @@ function FeedbackPanel({ moduleNum, moduleName, logs, onAdd, onStatus, facilitat
 
   const submit = () => {
     if (!body.trim()) return;
-    // Block anonymous posts without a name
     if (!autoName && !name.trim()) {
       setNameError(true);
       setTimeout(() => setNameError(false), 2000);
       return;
     }
     const fac = facilitators.find(f=>f.id===displayFacId);
+    // id is local-only for React rendering; Supabase generates its own uuid
     onAdd({
-      id:Date.now(), moduleNum, moduleName,
+      id: Date.now(),         // local React key only
+      moduleNum,
+      moduleName,
       author: fac ? fac.name : displayName,
       fac_id: displayFacId || null,
-      type, field:field||null, body, status:"pending", createdAt:ts()
+      type,
+      field: field || null,
+      body,
+      status: "pending",
+      createdAt: ts(),        // local display only; DB uses now()
     });
     setBody(""); setField(""); setName("");
   };
@@ -892,18 +881,51 @@ export default function App() {
   },[]);
 
   const addLog = useCallback(async (entry) => {
-    // Auto-populate author from session if available
     const resolvedEntry = {
       ...entry,
-      author: entry.author || (sessionUser?.full_name) || "Anonymous",
-      fac_id: entry.fac_id || sessionUser?.id || null,
+      author: entry.author || sessionUser?.full_name || "Anonymous",
+      fac_id: entry.fac_id || null, // must be valid uuid or null
     };
+    // Store locally with a temp id for immediate UI display
     setLogs(prev=>[...prev,resolvedEntry]);
+
     const mod = DEFAULT_MODULES.find(m=>m.num===entry.moduleNum);
     const modName = mod ? mod.month+" -- "+mod.title : "General";
-    if (SUPABASE_URL && SUPABASE_ANON) await sbFetch("curriculum_edits",{method:"POST",body:JSON.stringify(resolvedEntry)});
+
+    // Build the Supabase payload -- omit id/created_at/updated_at (DB generates them)
+    // omit fac_id if it is not a valid uuid
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const sbPayload = {
+      module_num:   resolvedEntry.moduleNum || null,
+      module_name:  resolvedEntry.moduleName || modName,
+      author:       resolvedEntry.author,
+      fac_id:       (resolvedEntry.fac_id && uuidRegex.test(resolvedEntry.fac_id))
+                      ? resolvedEntry.fac_id : null,
+      type:         resolvedEntry.type || "comment",
+      field:        resolvedEntry.field || null,
+      body:         resolvedEntry.body,
+      status:       "pending",
+    };
+
+    if (SUPABASE_URL && SUPABASE_ANON) {
+      const result = await sbFetch("curriculum_edits", {
+        method:"POST",
+        body: JSON.stringify(sbPayload),
+      });
+      if (result) {
+        console.log("[DCW] Comment saved to Supabase");
+        // Sync to Notion via server-side Vercel function (avoids CORS)
+        try {
+          await fetch("/api/notion-sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry: resolvedEntry, moduleName: modName }),
+          });
+        } catch(e) { /* Notion sync failure is non-critical */ }
+      }
+    }
+
     if (resolvedEntry.type==="edit") await sendAdminEmail(resolvedEntry, modName);
-    await syncToNotion(resolvedEntry, modName);
   },[sessionUser]);
 
   const updateStatus = useCallback((id,status)=>{
