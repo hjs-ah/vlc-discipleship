@@ -1,6 +1,6 @@
 // api/notion-sync.js
 // Vercel serverless function -- proxies feedback entries to Notion.
-// Reads NOTION_TOKEN and NOTION_DB_ID from server-side env vars (no VITE_ prefix).
+// Property names match the exact schema of the D2D Curriculum Feedback Log database.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -10,23 +10,69 @@ export default async function handler(req, res) {
   const NOTION_TOKEN = process.env.NOTION_TOKEN;
   const NOTION_DB_ID = process.env.NOTION_DB_ID;
 
-  // Log what the server sees -- appears in Vercel runtime logs
   console.log("[notion-sync] Token present:", !!NOTION_TOKEN);
-  console.log("[notion-sync] DB ID present:", !!NOTION_DB_ID, NOTION_DB_ID ? NOTION_DB_ID.slice(0,8)+"..." : "MISSING");
+  console.log("[notion-sync] DB ID present:", !!NOTION_DB_ID);
 
   if (!NOTION_TOKEN || !NOTION_DB_ID) {
-    console.warn("[notion-sync] Skipping -- env vars not configured. Add NOTION_TOKEN and NOTION_DB_ID in Vercel project settings (no VITE_ prefix).");
+    console.warn("[notion-sync] Skipping -- NOTION_TOKEN or NOTION_DB_ID not set in Vercel env vars (no VITE_ prefix).");
     return res.status(200).json({ ok: true, skipped: true });
   }
 
   const { entry, moduleName } = req.body || {};
 
   if (!entry || !entry.body) {
-    console.warn("[notion-sync] Missing entry data in request body");
     return res.status(400).json({ error: "Missing entry data" });
   }
 
-  console.log("[notion-sync] Syncing entry from:", entry.author, "| module:", moduleName, "| type:", entry.type);
+  // Build title: "comment -- Month 3 -- Antone Holmes"
+  const title = [entry.type, moduleName, entry.author].filter(Boolean).join(" -- ");
+
+  // Module must be one of the select options: "Month 1" through "Month 12" or "Rotation View"
+  // Extract just the "Month X" part from moduleName like "Month 3 -- Developing a Relationship..."
+  const moduleMatch = (moduleName || "").match(/^(Month \d+|Rotation View)/);
+  const moduleSelect = moduleMatch ? moduleMatch[1] : null;
+
+  const properties = {
+    // Title property (required, named "Title" in this database)
+    "Title": {
+      title: [{ text: { content: title } }]
+    },
+    // Author -- text
+    "Author": {
+      rich_text: [{ text: { content: entry.author || "Anonymous" } }]
+    },
+    // Type -- select: "comment" | "edit" | "question"
+    "Type": {
+      select: { name: entry.type || "comment" }
+    },
+    // Status -- select: "pending" | "approved" | "rejected"
+    "Status": {
+      select: { name: entry.status || "pending" }
+    },
+    // Body -- text
+    "Body": {
+      rich_text: [{ text: { content: (entry.body || "").slice(0, 2000) } }]
+    },
+    // Field -- text (optional)
+    "Field": {
+      rich_text: [{ text: { content: entry.field || "" } }]
+    },
+    // Supabase ID -- text
+    "Supabase ID": {
+      rich_text: [{ text: { content: String(entry.id || "") } }]
+    },
+    // Submitted -- date (ISO format)
+    "Submitted": {
+      date: { start: new Date().toISOString() }
+    },
+  };
+
+  // Only add Module if it matches a valid select option
+  if (moduleSelect) {
+    properties["Module"] = { select: { name: moduleSelect } };
+  }
+
+  console.log("[notion-sync] Sending entry:", title, "| module:", moduleSelect);
 
   try {
     const response = await fetch("https://api.notion.com/v1/pages", {
@@ -38,24 +84,15 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         parent: { database_id: NOTION_DB_ID },
-        properties: {
-          Name:   { title:     [{ text: { content: `${entry.type} -- ${moduleName || "General"}` } }] },
-          Author: { rich_text: [{ text: { content: entry.author || "Anonymous" } }] },
-          Type:   { select:    { name: entry.type || "comment" } },
-          Module: { rich_text: [{ text: { content: moduleName || "" } }] },
-          Field:  { rich_text: [{ text: { content: entry.field || "" } }] },
-          Body:   { rich_text: [{ text: { content: entry.body } }] },
-          Status: { select:    { name: entry.status || "pending" } },
-          Date:   { date:      { start: new Date().toISOString() } },
-        },
+        properties,
       }),
     });
 
     const responseText = await response.text();
 
     if (!response.ok) {
-      console.error("[notion-sync] Notion API error:", response.status, responseText.slice(0, 200));
-      return res.status(200).json({ ok: false, notionError: response.status, detail: responseText.slice(0,200) });
+      console.error("[notion-sync] Notion API error:", response.status, responseText.slice(0, 300));
+      return res.status(200).json({ ok: false, notionError: response.status, detail: responseText.slice(0, 300) });
     }
 
     console.log("[notion-sync] Success -- page created in Notion");
