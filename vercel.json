@@ -1,19 +1,12 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/" }
-  ],
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
         {
-          "key": "X-Frame-Options",
-          "value": "ALLOW-FROM https://vlc-kappa.vercel.app"
-        },
-        {
           "key": "Content-Security-Policy",
-          "value": "frame-ancestors 'self' https://vlc-kappa.vercel.app https://vlc-hjs-ahs-projects.vercel.app https://vlc-git-main-hjs-ahs-projects.vercel.app https://localhost:*"
+          "value": "frame-ancestors 'self' https://*.vercel.app"
         }
       ]
     }
